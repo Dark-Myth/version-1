@@ -15,7 +15,7 @@ export default function Home() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setShowCricket(true);
-    }, 4000); // ~1.5 + (2 * 0.6) = 2.7s
+    }, 7000); // ~1.5 + (2 * 0.6) = 2.7s
     return () => clearTimeout(timer);
   }, []);
 
@@ -28,7 +28,7 @@ export default function Home() {
             className="text-2xl font-semibold"
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 4, delay: index * .5 ,ease: "easeInOut" }}
+            transition={{ duration: 5, delay: index * .6 ,ease: "easeInOut" }}
             
           >
             {line}
