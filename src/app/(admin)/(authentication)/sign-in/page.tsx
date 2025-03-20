@@ -12,7 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
-import { toast } from "sonner";
+import { toast } from "sonner"
 import { useRouter } from "next/navigation";
 import { useSession,signIn } from "next-auth/react";
 import { motion } from "framer-motion";
@@ -35,7 +35,9 @@ export default function LoginPage() {
       if (response?.error) {
         toast.error(response.error);
       } else {
-        toast.success("User signed in successfully");
+        toast("Sign-in Successful", {
+          description: "Welcome Back!",
+        });
         router.push("/");
       }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -60,10 +62,10 @@ export default function LoginPage() {
     <motion.div
     initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      transition={{ duration: 1, ease: "easeInOut" }} className="flex items-center justify-center h-screen">
+      transition={{ duration: 1, ease: "easeInOut" }} className="flex items-center justify-center h-screen bg-neutral-100">
       <Card className="w-[400px] m-auto">
         <CardHeader className="text-center">
-          <CardTitle>Login</CardTitle>
+          <CardTitle>Sign in</CardTitle>
         </CardHeader>
         <CardContent>
           <form>
@@ -92,7 +94,7 @@ export default function LoginPage() {
           </form>
         </CardContent>
         <CardFooter className="flex flex-col gap-3">
-          <Button onClick={onLogin} >Login</Button>
+          <Button onClick={onLogin}>Login</Button>
           <Link href="/sign-up">
             Visit Sign-up Page
           </Link>

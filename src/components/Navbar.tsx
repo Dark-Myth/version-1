@@ -31,16 +31,16 @@ const Navbar = () => {
   const { data: session } = useSession();
 
   return (
-    <nav className="w-full">
+    <nav className="w-full shadow-neutral-300 shadow-sm z-2">
       
-      <Menubar className="rounded-none flex justify-between gap-16 h-10 max-sm:hidden  x overflow-hidden">
-      <div  className="flex justify-center items-center gap-16 mx-auto">
+      <Menubar className="rounded-none flex justify-between gap-16 h-10 max-sm:hidden  overflow-hidden">
+      <div  className="flex justify-center items-center gap-16 mx-auto max-md:gap-1">
         {navbarList.map((item) => {
           const isActive = pathname === item.href;
           return (
             <MenubarMenu key={item.name}>
               <MenubarTrigger>
-                <Link href={item.href} className="w-full text-[16px]">
+                <Link href={item.href} className="w-full text-[16px] ">
                   <span className={cn({ underline: isActive })}>{item.name}</span>
                 </Link>
               </MenubarTrigger>
@@ -50,9 +50,9 @@ const Navbar = () => {
         {session && 
           <MenubarMenu>
             <MenubarTrigger>
-              <Link href="/management" className="w-full text-[16px]">
-                <span className={cn({ underline: pathname === "/management" })}>Management</span>
-              </Link>
+                <Link href={`/management/${session.user!.id}`} className="w-full text-[16px]">
+                <span className={cn({ underline: pathname === `/management/${session.user!.id}` })}>Management</span>
+                </Link>
             </MenubarTrigger>
           </MenubarMenu>}
         </div>
@@ -90,7 +90,7 @@ const Navbar = () => {
       </Menubar>
 
       {/* Mobile sheet menu */}
-      <div className="m-2 sm:hidden flex flex-between justify-between border-b-2">
+      <div className="m-2 sm:hidden flex flex-between justify-between overflow-hidden">
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
             <Image
@@ -109,7 +109,7 @@ const Navbar = () => {
               <Link
                 key={item.name}
                 href={item.href}
-                className="block py-2 mx-auto text-center"
+                className="block py-2 mx-auto text-center overflow-auto "
                 onClick={() => setOpen(false)} // Close sheet on link click
               >
                 {item.name}
@@ -117,8 +117,9 @@ const Navbar = () => {
             ))}
               {session && 
 
-              <Link href="/management" className="block py-2 mx-auto text-center">
-                <span className={cn({ underline: pathname === "/management" })}>Management</span>
+              <Link href={`/management/${session.user!.id}`} className="block py-2 mx-auto text-center text-"
+              onClick={() => setOpen(false)}>
+                <span className={cn({ underline: pathname === `/management/${session.user!.id}` })}>Management</span>
               </Link>}
           </SheetContent>
         </Sheet>

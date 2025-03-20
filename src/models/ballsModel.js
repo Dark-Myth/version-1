@@ -1,32 +1,50 @@
 import mongoose from "mongoose";
-import ballSchema from "./ballModel.js";
 
-const overSchema = new mongoose.Schema({
-    match_id: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "matches", // Reference to Match Model
-        required: [true, "Match ID is required"],
-    },
-    over_number: {
+const ballSchema = new mongoose.Schema({
+    ball_number: {
         type: Number,
-        required: [true, "Over Number is required"],
+        required: [true, "Ball Number is required"],
+    },
+    batsman: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Player',
+        required: [true, "Batsman is required"],
     },
     bowler: {
-        type: String,
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Player',
         required: [true, "Bowler is required"],
     },
-    balls: {
-        type: [ballSchema],
-        validate: {
-            validator: function (balls) {
-                // ✅ Only count legal deliveries toward the 6-ball limit
-                const legalDeliveries = balls.filter(ball => !ball.extras.wides && !ball.extras.no_balls).length;
-                return legalDeliveries <= 6;
-            },
-            message: "An over cannot have more than 6 legal deliveries!",
+    runs: {
+        type: Number,
+        required: [true, "Runs are required"],
+    },
+    wicket: {
+        fallen: {
+            type: Boolean,
+            required: true,
         },
+        wicketType: {
+            type: String,
+            enum: ["bowled", "caught", "lbw", "run out", "stumped", "hit wicket"],
+            required: function () {
+                return this.fallen;
+            },
+        },
+        fielder: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Player',
+            required: function () {
+                return this.fallen && ["caught", "run out", "stumped"].includes(this.wicketType);
+            },
+        },
+    },
+    extras: {
+        wides: { type: Number, default: 0 },
+        no_balls: { type: Number, default: 0 },
+        byes: { type: Number, default: 0 },
+        leg_byes: { type: Number, default: 0 },
     },
 });
 
-const Over = mongoose.models.overs || mongoose.model("overs", overSchema);
-export default Over;
+export default ballSchema;

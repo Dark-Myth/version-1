@@ -1,15 +1,29 @@
 import mongoose from "mongoose";
 
 const inningsSchema = new mongoose.Schema({
+    innings_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        default: function () {
+            return this._id;
+        },
+        unique: true,
+    },
     match_id: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "matches", // Reference to Match Model
         required: [true, "Match ID is required"],
     },
     team: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "teams", // Reference to Team Model
-        required: [true, "Team ID is required"],
+        batting_team:{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "teams", // Reference to Team Model
+            required: [true, "Team ID is required"],
+        },
+        bowling_team:{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "teams", // Reference to Team Model
+            required: [true, "Team ID is required"],
+        }
     },
     runs: {
         type: Number,

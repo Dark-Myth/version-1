@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import Player from "./playerModel.js";
+import Player from "./playersModel.js";
 
 const playerStatsSchema = new mongoose.Schema({
     player_id: {
@@ -91,5 +91,5 @@ playerStatsSchema.statics.updateGlobalStats = async function (playerId) {
     });
 };
 
-const PlayerStats = mongoose.models.playerStats || mongoose.model("playerStats", playerStatsSchema);
+const PlayerStats = mongoose.models.playerstats || mongoose.model("playerstats", playerStatsSchema);
 export default PlayerStats;

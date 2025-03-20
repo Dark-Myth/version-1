@@ -2,8 +2,10 @@ import mongoose from "mongoose";
 
 const matchSchema = new mongoose.Schema({
     match_id: {
-        type: String,
-        required: [true, "Match ID is required"],
+        type: mongoose.Schema.Types.ObjectId,
+        default: function () {
+            return this._id;
+        },
         unique: true,
     },
     tournament_id: {
@@ -78,7 +80,14 @@ const matchSchema = new mongoose.Schema({
         },
         enum: [10, 15, 20, 30, 50],
     },
+    comments: {
+        type: String,
+        required: false,
+    }
 });
 
 const Match = mongoose.models.matches || mongoose.model("matches", matchSchema);
 export default Match;
+
+
+// show that match is tied if the scores are equal

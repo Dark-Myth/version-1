@@ -14,23 +14,22 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import axios from "axios";
 import { useSession, signIn } from "next-auth/react";
 import { motion } from "framer-motion";
 
 export default function SignupPage() {
-
   const router = useRouter();
   const [user, setUser] = useState({
     username: "",
     email: "",
-    password: ""
+    password: "",
+    confirmPassword: "",
   });
   const [buttonDisabled, setButtonDisabled] = useState(true);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (user.username.length > 0 && user.email.length > 0 && user.password.length > 0) {
+    if (user.username.length > 0 && user.email.length > 0 && user.password.length > 0 && user.password === user.confirmPassword) {
       setButtonDisabled(false);
     } else {
       setButtonDisabled(true);
@@ -51,9 +50,6 @@ export default function SignupPage() {
   const onSignup = async () => {
     try {
       setLoading(true);
-      const response = await axios.post("/api/users/signup", user);
-      console.log(response.data);
-      toast.success(response.data.message);
       await signIn("credentials", {
         redirect: false,
         email: user.email,
@@ -76,13 +72,13 @@ export default function SignupPage() {
       transition={{ duration: 1, ease: "easeInOut" }} className="flex items-center justify-center min-h-screen">
       <Card className="w-[400px]">
         <CardHeader className="text-center">
-          <CardTitle>{loading ? "Loading..." : "Signup"}</CardTitle>
+          <CardTitle>{loading ? "Loading..." : "Sign up"}</CardTitle>
         </CardHeader>
         <CardContent>
           <form>
             <div className="grid w-full items-center gap-4">
               <div className="flex flex-col space-y-1.5">
-                <Label htmlFor="user_id">User ID</Label>
+                <Label htmlFor="user_id">User name</Label>
                 <Input
                   id="user_id"
                   placeholder="Enter your user ID"
@@ -110,11 +106,22 @@ export default function SignupPage() {
                   onChange={(e) => setUser({ ...user, password: e.target.value })}
                 />
               </div>
+                <div className="flex flex-col space-y-1.5">
+                <Label htmlFor="confirm-password">Confirm Password</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  placeholder="Re-enter your password"
+                  onChange={(e) => setUser({ ...user, confirmPassword: e.target.value })}
+                />
+                </div>
             </div>
           </form>
         </CardContent>
         <CardFooter className="flex flex-col gap-3">
-          <Button onClick={onSignup} >{buttonDisabled ? "No Signup" : "Sign up"}</Button>
+            <Button onClick={onSignup} disabled={buttonDisabled}>
+            {buttonDisabled ? "No Signup" : "Sign up"}
+            </Button>
           <Link href="/sign-in">
             Visit Sign-in Page
           </Link>

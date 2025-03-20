@@ -2,9 +2,11 @@ import mongoose from "mongoose";
 
 const teamSchema = new mongoose.Schema({
     team_id: {
-        type: String,
-        required: [true, "Team ID is required"],
-        unique: true,
+                type: mongoose.Schema.Types.ObjectId,
+                default: function () {
+                    return this._id;
+                },
+                unique: true,
     },
     teamName: {
         type: String,
@@ -32,6 +34,11 @@ const teamSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: "players", // Reference to Players
         required: false, // Some teams may not have a vice-captain
+    },
+    wicketKeeper: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "players", // Reference to Players
+        required: false,
     },
     coach: {
         type: String,

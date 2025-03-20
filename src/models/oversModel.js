@@ -3,8 +3,14 @@ import ballSchema from "./ballModel.js";
 
 const overSchema = new mongoose.Schema({
     match_id: {
-        type: String,
-        required: [true, "Match ID is required"],
+         type: mongoose.Schema.Types.ObjectId,
+                ref: "matches", // Reference to Match Model
+                required: [true, "Match ID is required"],
+    },
+    innings_id: {
+       type: mongoose.Schema.Types.ObjectId,
+         ref: "innings", // Reference to Innings Model
+        required: [true, "Innings ID is required"],
     },
     over_number: {
         type: Number,
