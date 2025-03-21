@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import ballSchema from "./ballModel.js";
+import ballSchema from "./ballsModel";  
 
 const overSchema = new mongoose.Schema({
     match_id: {
