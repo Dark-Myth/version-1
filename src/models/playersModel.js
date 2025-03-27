@@ -32,11 +32,16 @@ const playerSchema = new mongoose.Schema({
     required: function () {
       return this.role === "bowler" || this.role === "all-rounder";
     },
+    default: function () {
+      // Set default for non-bowling roles
+      return (this.role === "batsman" || this.role === "wicket-keeper") ? "N/A" : undefined;
+    }
   },
   status: {
     type: String,
     enum: ["active", "injured", "retired"],
     required: [true, "Status is required"],
+    default: "active"
   },
 
   // 🌍 GLOBAL CAREER STATS (Aggregated Across All Tournaments)

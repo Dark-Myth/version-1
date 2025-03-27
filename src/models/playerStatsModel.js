@@ -4,17 +4,17 @@ import Player from "./playersModel.js";
 const playerStatsSchema = new mongoose.Schema({
     player_id: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "players", // Reference to Player Model
+        ref: "players", // Make sure this matches the actual model name
         required: [true, "Player ID is required"],
     },
     tournament_id: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "tournaments", // Reference to Tournament Model
+        ref: "tournaments", // Make sure this matches the actual model name
         required: [true, "Tournament ID is required"],
     },
     team_id: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "teams", // Reference to Team Model
+        ref: "teams", // Make sure this matches the actual model name
         required: [true, "Team ID is required"],
     },
     battingStats: {

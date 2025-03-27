@@ -11,9 +11,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger} from "@/components/ui/tabs";
 import { 
-   Plus, Edit, Trash2, Search,
+   Plus, Edit, Trash2, Search
 } from "lucide-react";
 import { format } from 'date-fns';
+
 
 interface Tournament {
   id: string;
@@ -24,6 +25,20 @@ interface Tournament {
   teams: number;
   matches: number;
   format: string;
+  hostedBy?: string;
+  venue?: string;
+  description?: string;
+  rules?: string[];
+  prize?: string[];
+  entryFee?: number;
+  userManagers?: string[];
+}
+
+interface User {
+  _id: string;
+  username: string;
+  email: string;
+  role: string;
 }
 
 interface TournamentManagementProps {
@@ -36,16 +51,22 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({ adminId }) 
   const [searchQuery, setSearchQuery] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
+  const [editingTournament, setEditingTournament] = useState<Tournament | null>(null);
+  const [openEditDialog, setOpenEditDialog] = useState(false);
+  const [users, setUsers] = useState<User[]>([]);
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5; // Number of tournaments to display per page
   
   useEffect(() => {
     fetchTournaments();
+    fetchUsers();
   }, [adminId]);
   
   const fetchTournaments = async () => {
     try {
       setLoading(true);
-      // Replace with your actual API endpoint
-      const response = await fetch('/api/tournaments');
+      const response = await fetch('/api/management/tournaments');
       
       if (!response.ok) {
         throw new Error("Failed to fetch tournaments");
@@ -59,81 +80,156 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({ adminId }) 
       setLoading(false);
     }
   };
-  
-  // For demo purposes - mock data
-  useEffect(() => {
-    // Simulating API response
-    setTimeout(() => {
-      const mockTournaments: Tournament[] = [
-        {
-          id: '1',
-          name: 'Summer Cricket Cup 2023',
-          startDate: '2023-06-01',
-          endDate: '2023-06-30',
-          status: 'completed',
-          teams: 8,
-          matches: 28,
-          format: 'T20'
-        },
-        {
-          id: '2',
-          name: 'Winter League 2024',
-          startDate: '2023-11-15',
-          endDate: '2024-02-28',
-          status: 'ongoing',
-          teams: 10,
-          matches: 45,
-          format: 'ODI'
-        },
-        {
-          id: '3',
-          name: 'Spring Championship',
-          startDate: '2024-04-10',
-          endDate: '2024-05-20',
-          status: 'upcoming',
-          teams: 6,
-          matches: 15,
-          format: 'T20'
-        },
-        {
-          id: '4',
-          name: 'Regional Cup',
-          startDate: '2024-07-05',
-          endDate: '2024-07-25',
-          status: 'upcoming',
-          teams: 4,
-          matches: 6,
-          format: 'Test'
-        },
-        {
-          id: '5',
-          name: 'Champions Trophy',
-          startDate: '2023-09-10',
-          endDate: '2023-10-15',
-          status: 'completed',
-          teams: 12,
-          matches: 31,
-          format: 'T20'
-        }
-      ];
-      
-      setTournaments(mockTournaments);
+
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/management/users');
+      if (!response.ok) {
+        throw new Error(`Failed to fetch users: ${response.status}`);
+      }
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        setUsers(data);
+        console.log("Fetched users:", data);
+      } else {
+        console.error("Invalid users data format:", data);
+        setUsers([]);
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      setUsers([]);
+    } finally {
       setLoading(false);
-    }, 1000);
-  }, []);
-  
-  const handleCreateTournament = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Handle form submission
-    console.log("Creating new tournament");
-    setOpenDialog(false);
-    // You would normally make an API call here
+    }
   };
   
-  const handleDeleteTournament = (id: string) => {
-    // Handle tournament deletion
-    console.log(`Deleting tournament ${id}`);
-    // You would normally make an API call here
+  useEffect(() => {
+    if (!openDialog) {
+      setSelectedUsers([]);
+    }
+  }, [openDialog]);
+
+  useEffect(() => {
+    if (!openEditDialog) {
+      setSelectedUsers([]);
+    }
+  }, [openEditDialog]);
+  
+  const handleCreateTournament = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    const formData = new FormData(form);
+    
+    try {
+      const response = await fetch('/api/management/tournaments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: formData.get('name'),
+          format: formData.get('format'),
+          startDate: formData.get('startDate'),
+          endDate: formData.get('endDate'),
+          teams: Number(formData.get('teams')),
+          hostedBy: formData.get('hostedBy'),
+          venue: formData.get('venue'),
+          description: formData.get('description'),
+          rules: (formData.get('rules') as string).split('\n').filter(rule => rule.trim()),
+          prize: (formData.get('prize') as string).split('\n').filter(prize => prize.trim()),
+          entryFee: Number(formData.get('entryFee')),
+          adminId: adminId,
+          userManagers: [...selectedUsers, adminId], // Include current admin
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create tournament');
+      }
+
+      setOpenDialog(false);
+      fetchTournaments();
+      form.reset();
+    } catch (error) {
+      console.error('Error creating tournament:', error);
+    }
+  };
+  
+  const handleDeleteTournament = async (id: string) => {
+    try {
+      const response = await fetch(`/api/management/tournaments?id=${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete tournament');
+      }
+
+      fetchTournaments();
+    } catch (error) {
+      console.error('Error deleting tournament:', error);
+    }
+  };
+
+  const handleEditClick = async (tournament: Tournament) => {
+    try {
+        const response = await fetch(`/api/management/tournaments/${tournament.id}`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch tournament details');
+        }
+        const fullTournament = await response.json();
+        setEditingTournament({
+            ...fullTournament,
+            // Ensure dates are in YYYY-MM-DD format
+            startDate: new Date(fullTournament.startDate).toISOString().split('T')[0],
+            endDate: new Date(fullTournament.endDate).toISOString().split('T')[0],
+        });
+        setSelectedUsers(fullTournament.userManagers || []);
+        setOpenEditDialog(true);
+    } catch (error) {
+        console.error('Error fetching tournament details:', error);
+    }
+};
+
+  const handleEditTournament = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTournament) return;
+
+    const form = e.target as HTMLFormElement;
+    const formData = new FormData(form);
+
+    try {
+      const response = await fetch(`/api/management/tournaments?id=${editingTournament.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: formData.get('name'),
+          format: formData.get('format'),
+          startDate: formData.get('startDate'),
+          endDate: formData.get('endDate'),
+          teams: Number(formData.get('teams')),
+          hostedBy: formData.get('hostedBy'),
+          venue: formData.get('venue'),
+          description: formData.get('description'),
+          rules: (formData.get('rules') as string).split('\n').filter(rule => rule.trim()),
+          prize: (formData.get('prize') as string).split('\n').filter(prize => prize.trim()),
+          entryFee: Number(formData.get('entryFee')),
+          matches: Number(formData.get('matches')),
+          userManagers: selectedUsers,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to update tournament');
+
+      setOpenEditDialog(false);
+      setEditingTournament(null);
+      fetchTournaments();
+    } catch (error) {
+      console.error('Error updating tournament:', error);
+    }
   };
   
   const filterTournaments = () => {
@@ -153,18 +249,13 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({ adminId }) 
     
     return filtered;
   };
-  
-  const getStatusBadge = (status: 'upcoming' | 'ongoing' | 'completed') => {
-    switch (status) {
-      case 'upcoming':
-        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Upcoming</Badge>;
-      case 'ongoing':
-        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Ongoing</Badge>;
-      case 'completed':
-        return <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">Completed</Badge>;
-      default:
-        return null;
-    }
+
+  // Function to get current page items
+  const getCurrentPageItems = () => {
+    const filtered = filterTournaments();
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filtered.slice(startIndex, endIndex);
   };
   
   if (loading) {
@@ -176,7 +267,22 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({ adminId }) 
   }
   
   const filteredTournaments = filterTournaments();
+  const currentPageItems = getCurrentPageItems();
+  const totalPages = Math.ceil(filteredTournaments.length / itemsPerPage);
   
+  const getStatusBadge = (status: string): React.ReactNode => {
+    switch (status) {
+      case 'upcoming':
+        return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">Upcoming</Badge>;
+      case 'ongoing':
+        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Ongoing</Badge>;
+      case 'completed':
+        return <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100">Completed</Badge>;
+      default:
+        return <Badge>{status}</Badge>;
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -192,7 +298,7 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({ adminId }) 
               New Tournament
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className="sm:max-w-[600px]">
             <DialogHeader>
               <DialogTitle>Create New Tournament</DialogTitle>
               <DialogDescription>
@@ -200,37 +306,176 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({ adminId }) 
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleCreateTournament}>
-              <div className="grid gap-4 py-4">
+              <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="name" className="text-right">
-                    Name
-                  </Label>
-                  <Input id="name" className="col-span-3" placeholder="Tournament name" required />
+                  <Label htmlFor="name" className="text-right">Name</Label>
+                  <Input id="name" name="name" className="col-span-3" required />
                 </div>
+                
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="format" className="text-right">
-                    Format
-                  </Label>
-                  <Input id="format" className="col-span-3" placeholder="T20, ODI, Test" required />
+                  <Label htmlFor="format" className="text-right">Format</Label>
+                  <select 
+                    id="format" 
+                    name="format" 
+                    className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2"
+                    required
+                  >
+                    <option value="">Select format</option>
+                    <option value="T20">T20</option>
+                    <option value="ODI">ODI</option>
+                    <option value="Test">Test</option>
+                  </select>
                 </div>
+
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="startDate" className="text-right">
-                    Start Date
-                  </Label>
-                  <Input id="startDate" type="date" className="col-span-3" required />
+                  <Label htmlFor="hostedBy" className="text-right">Hosted By</Label>
+                  <Input id="hostedBy" name="hostedBy" className="col-span-3" required />
                 </div>
+
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="endDate" className="text-right">
-                    End Date
-                  </Label>
-                  <Input id="endDate" type="date" className="col-span-3" required />
+                  <Label htmlFor="venue" className="text-right">Venue</Label>
+                  <Input id="venue" name="venue" className="col-span-3" required />
                 </div>
+
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="teams" className="text-right">
-                    Teams
-                  </Label>
-                  <Input id="teams" type="number" min="2" className="col-span-3" required />
+                  <Label htmlFor="description" className="text-right">Description</Label>
+                  <textarea 
+                    id="description" 
+                    name="description" 
+                    className="col-span-3 flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2"
+                    required
+                  />
                 </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="rules" className="text-right">Rules</Label>
+                  <textarea 
+                    id="rules" 
+                    name="rules" 
+                    placeholder="Enter each rule on a new line"
+                    className="col-span-3 flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="prize" className="text-right">Prizes</Label>
+                  <textarea 
+                    id="prize" 
+                    name="prize" 
+                    placeholder="Enter each prize on a new line"
+                    className="col-span-3 flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="entryFee" className="text-right">Entry Fee</Label>
+                  <Input 
+                    id="entryFee" 
+                    name="entryFee" 
+                    type="number" 
+                    min="0" 
+                    className="col-span-3" 
+                    required 
+                  />
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="teams" className="text-right">Teams</Label>
+                  <Input 
+                    id="teams" 
+                    name="teams" 
+                    type="number" 
+                    min="2" 
+                    className="col-span-3" 
+                    required 
+                  />
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="startDate" className="text-right">Start Date</Label>
+                  <Input 
+                    id="startDate" 
+                    name="startDate" 
+                    type="date" 
+                    className="col-span-3" 
+                    required 
+                  />
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="endDate" className="text-right">End Date</Label>
+                  <Input 
+                    id="endDate" 
+                    name="endDate" 
+                    type="date" 
+                    className="col-span-3" 
+                    required 
+                  />
+                </div>
+
+                               
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="userManagers" className="text-right">
+                    User Managers
+                  </Label>
+                  <div className="col-span-3">
+                    <div className="border rounded-md p-3">
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {selectedUsers.length > 0 && users.length > 0 ? (
+                          selectedUsers
+                            .filter(userId => userId !== adminId) // Filter out the current admin from display
+                            .map(userId => {
+                              const user = users.find(u => u._id === userId);
+                              return user ? (
+                                <Badge key={userId} variant="secondary" className="px-2 py-1">
+                                  {user.username}
+                                  <button
+                                    onClick={() => {
+                                      setSelectedUsers(prev => prev.filter(id => id !== userId));
+                                    }}
+                                    className="ml-1 hover:text-red-500"
+                                  >
+                                    ×
+                                  </button>
+                                </Badge>
+                              ) : null;
+                            })
+                        ) : (
+                          <div className="text-sm text-gray-500">
+                            {selectedUsers.includes(adminId) ? 
+                              "Only you (admin) selected as manager" : 
+                              "No managers selected"}
+                          </div>
+                        )}
+                      </div>
+                      <select
+                        className="w-full p-2 border rounded-md"
+                        value=""
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value && !selectedUsers.includes(value)) {
+                            setSelectedUsers([...selectedUsers, value]);
+                          }
+                        }}
+                      >
+                        <option value="">Add a manager...</option>
+                        {users
+                          .filter(user => !selectedUsers.includes(user._id))
+                          .map(user => (
+                            <option key={user._id} value={user._id}>
+                              {user.username} - {user.email} ({user.role})
+                            </option>
+                          ))}
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Current admin will be automatically added as a manager
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
               </div>
               <DialogFooter>
                 <Button type="submit">Create Tournament</Button>
@@ -276,25 +521,25 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({ adminId }) 
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredTournaments.length === 0 ? (
+              {currentPageItems.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-6 text-gray-500">
                     No tournaments found
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredTournaments.map((tournament) => (
+                currentPageItems.map((tournament) => (
                   <TableRow key={tournament.id}>
                     <TableCell className="font-medium">{tournament.name}</TableCell>
                     <TableCell>{tournament.format}</TableCell>
                     <TableCell>
-                      {format(new Date(tournament.startDate), 'MMM d, yyyy')} - {format(new Date(tournament.endDate), 'MMM d, yyyy')}
+                      {format(new Date(tournament.startDate), 'MM - dd - yyyy')} to {format(new Date(tournament.endDate), 'MM - dd - yyyy')}
                     </TableCell>
                     <TableCell>{tournament.teams}</TableCell>
                     <TableCell>{tournament.matches}</TableCell>
                     <TableCell>{getStatusBadge(tournament.status)}</TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="icon">
+                      <Button variant="ghost" size="icon" onClick={() => handleEditClick(tournament)}>
                         <Edit className="h-4 w-4" />
                       </Button>
                       <Button variant="ghost" size="icon" onClick={() => handleDeleteTournament(tournament.id)}>
@@ -309,18 +554,240 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({ adminId }) 
         </CardContent>
         <CardFooter className="flex justify-between border-t p-4">
           <div className="text-sm text-gray-500">
-            Showing {filteredTournaments.length} of {tournaments.length} tournaments
+            Showing {Math.min(currentPage * itemsPerPage, filteredTournaments.length)} of {filteredTournaments.length} tournaments
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" disabled>
+            {/* Pagination controls */}
+            <div className="flex items-center space-x-2">
+              <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage <= 1}
+              >
               Previous
-            </Button>
-            <Button variant="outline" size="sm" disabled>
-              Next
-            </Button>
-          </div>
+              </Button>
+              <span className="text-sm">
+              Page {currentPage} of {totalPages || 1}
+              </span>
+              <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage >= totalPages}
+                >
+                  Next
+                </Button>
+              </div>
+              </div>
         </CardFooter>
       </Card>
+
+      <Dialog open={openEditDialog} onOpenChange={setOpenEditDialog}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Edit Tournament</DialogTitle>
+            <DialogDescription>
+              Update the tournament details.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleEditTournament}>
+            <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="name" className="text-right">Name</Label>
+                <Input 
+                  id="name" 
+                  name="name" 
+                  className="col-span-3" 
+                  defaultValue={editingTournament?.name}
+                  required 
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="format" className="text-right">Format</Label>
+                <select 
+                  id="format" 
+                  name="format" 
+                  className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2"
+                  defaultValue={editingTournament?.format}
+                  required
+                >
+                  <option value="">Select format</option>
+                  <option value="T20">T20</option>
+                  <option value="ODI">ODI</option>
+                  <option value="Test">Test</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="hostedBy" className="text-right">Hosted By</Label>
+                <Input 
+                  id="hostedBy" 
+                  name="hostedBy" 
+                  className="col-span-3" 
+                  defaultValue={editingTournament?.hostedBy}
+                  required 
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="venue" className="text-right">Venue</Label>
+                <Input 
+                  id="venue" 
+                  name="venue" 
+                  className="col-span-3" 
+                  defaultValue={editingTournament?.venue}
+                  required 
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="description" className="text-right">Description</Label>
+                <textarea 
+                  id="description" 
+                  name="description" 
+                  className="col-span-3 flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2"
+                  defaultValue={editingTournament?.description}
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="rules" className="text-right">Rules</Label>
+                <textarea 
+                  id="rules" 
+                  name="rules" 
+                  placeholder="Enter each rule on a new line"
+                  className="col-span-3 flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2"
+                  defaultValue={editingTournament?.rules?.join('\n')}
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="prize" className="text-right">Prizes</Label>
+                <textarea 
+                  id="prize" 
+                  name="prize" 
+                  placeholder="Enter each prize on a new line"
+                  className="col-span-3 flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2"
+                  defaultValue={editingTournament?.prize?.join('\n')}
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="entryFee" className="text-right">Entry Fee</Label>
+                <Input 
+                  id="entryFee" 
+                  name="entryFee" 
+                  type="number" 
+                  min="0" 
+                  className="col-span-3" 
+                  defaultValue={editingTournament?.entryFee?.toString()}
+                  required 
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="teams" className="text-right">Teams</Label>
+                <Input 
+                  id="teams" 
+                  name="teams" 
+                  type="number" 
+                  min="2" 
+                  className="col-span-3" 
+                  defaultValue={editingTournament?.teams.toString()}
+                  required 
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="startDate" className="text-right">Start Date</Label>
+                <Input 
+                  id="startDate" 
+                  name="startDate" 
+                  type="date" 
+                  className="col-span-3" 
+                  defaultValue={editingTournament?.startDate}
+                  required 
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="endDate" className="text-right">End Date</Label>
+                <Input 
+                  id="endDate" 
+                  name="endDate" 
+                  type="date" 
+                  className="col-span-3" 
+                  defaultValue={editingTournament?.endDate}
+                  required 
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="matches" className="text-right">Matches</Label>
+                <Input 
+                  id="matches" 
+                  name="matches" 
+                  type="number" 
+                  min="0" 
+                  className="col-span-3" 
+                  defaultValue={editingTournament?.matches?.toString()}
+                  required 
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="userManagers" className="text-right">
+                  User Managers
+                </Label>
+                <div className="col-span-3">
+                  <div className="border rounded-md p-3">
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {selectedUsers.length > 0 && users.length > 0 ? (
+                        selectedUsers.map(userId => {
+                          const user = users.find(u => u._id === userId);
+                          return user ? (
+                            <Badge key={userId} variant="secondary" className="px-2 py-1">
+                              {user.username}
+                              {/* Don't allow removing current admin */}
+                              {userId !== adminId && (
+                                <button
+                                  onClick={() => {
+                                    setSelectedUsers(prev => prev.filter(id => id !== userId));
+                                  }}
+                                  className="ml-1 hover:text-red-500"
+                                >
+                                  ×
+                                </button>
+                              )}
+                            </Badge>
+                          ) : null;
+                        })
+                      ) : (
+                        <div className="text-sm text-gray-500">No managers selected</div>
+                      )}
+                    </div>
+                    <select
+                      className="w-full p-2 border rounded-md"
+                      value=""
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value && !selectedUsers.includes(value)) {
+                          setSelectedUsers([...selectedUsers, value]);
+                        }
+                      }}
+                    >
+                      <option value="">Add a manager...</option>
+                      {users
+                        .filter(user => !selectedUsers.includes(user._id))
+                        .map(user => (
+                          <option key={user._id} value={user._id}>
+                            {user.username} - {user.email} ({user.role})
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit">Update Tournament</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
