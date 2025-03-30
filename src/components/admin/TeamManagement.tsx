@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -59,7 +59,7 @@ interface Player {
   isCaptain: boolean;
   isViceCaptain: boolean;
   isWicketKeeper: boolean;
-  stats: any;
+  stats: unknown;
 }
 
 interface AvailablePlayer {

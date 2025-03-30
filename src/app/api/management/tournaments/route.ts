@@ -4,26 +4,41 @@ import Tournament from "@/models/tournamentsModel";
 
 const connectionPromise = connect();
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
         await connectionPromise;
-        const tournaments = await Tournament.find({})
-            .select('tournamentName startDate endDate status teams matches format');
-
-        const formattedTournaments = tournaments.map(t => ({
-            id: t._id,
-            name: t.tournamentName,
-            startDate: t.startDate,
-            endDate: t.endDate,
-            status: t.status === 'scheduled' ? 'upcoming' : t.status,
-            teams: t.teams,
-            matches: t.matches,
-            format: t.format
-        }));
-
-        return NextResponse.json(formattedTournaments);
+        
+        const { searchParams } = new URL(request.url);
+        const status = searchParams.get("status");
+        const search = searchParams.get("search");
+        
+        const query: any = {};
+        
+        if (status && status !== "all") {
+            query.status = status;
+        }
+        
+        if (search) {
+            query.tournamentName = { $regex: search, $options: "i" };
+        }
+        
+        const tournaments = await Tournament.find(query)
+            .populate({
+                path: 'handler',
+                select: 'username name'
+            })
+            .sort({ createdAt: -1 })
+            .lean();
+        
+        console.log(`Found ${tournaments.length} tournaments`);
+        
+        return NextResponse.json(tournaments);
     } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        console.error("Error fetching tournaments:", error);
+        return NextResponse.json(
+            { error: "Failed to fetch tournaments", details: error instanceof Error ? error.message : String(error) }, 
+            { status: 500 }
+        );
     }
 }
 

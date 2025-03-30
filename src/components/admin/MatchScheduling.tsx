@@ -216,36 +216,43 @@ const MatchScheduling: React.FC<MatchSchedulingProps> = ({ adminId }) => {
     }
   };
   
-  const fetchTournaments = async () => {
-    try {
-      const response = await fetch('/api/management/tournaments');
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch tournaments');
-      }
-      
-      const data = await response.json();
-      console.log("Raw tournaments data:", data);
-      
-      // Transform API response to match our interface - include userManagers
-      const transformedData = data.map((tournament: any) => ({
-        id: tournament._id,
-        _id: tournament._id,
-        tournamentName: tournament.tournamentName,
-        status: tournament.status,
-        userManagers: tournament.userManagers || [],
-        teams: tournament.teams // This is a number, not an array
-      }));
-      
-      setTournaments(transformedData);
-      return transformedData;
-    } catch (error) {
-      console.error('Error fetching tournaments:', error);
-      toast.error('Failed to fetch tournaments');
+const fetchTournaments = async () => {
+  try {
+    console.log("Fetching tournaments...");
+    const response = await fetch('/api/management/tournaments');
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to fetch tournaments');
+    }
+    
+    const data = await response.json();
+    console.log("Raw tournaments data:", data);
+    
+    if (!Array.isArray(data)) {
+      console.error("Tournament data is not an array:", data);
       return [];
     }
-  };
+    
+    // Transform API response to match our interface with proper ID handling
+    const transformedData = data.map((tournament: any) => ({
+      id: tournament._id,
+      _id: tournament._id,
+      tournamentName: tournament.tournamentName || "Unnamed Tournament",
+      status: tournament.status || "unknown",
+      userManagers: tournament.userManagers || [],
+      teams: tournament.teams || 0
+    }));
+    
+    console.log("Transformed tournament data:", transformedData);
+    setTournaments(transformedData);
+    return transformedData;
+  } catch (error) {
+    console.error('Error fetching tournaments:', error);
+    toast.error('Failed to fetch tournaments');
+    return [];
+  }
+};
   
   const fetchTeams = async () => {
     try {
@@ -270,16 +277,16 @@ const MatchScheduling: React.FC<MatchSchedulingProps> = ({ adminId }) => {
     } catch (error) {
       console.error('Error fetching teams:', error);
       toast.error('Failed to fetch teams');
-      return [];
+      return transformedData;
     }
   };
   
-// Update the fetchTeamsForTournament function with better error handling
+// Fix the fetchTeamsForTournament function
 const fetchTeamsForTournament = async (tournamentId: string) => {
   if (!tournamentId) {
     console.warn("Attempted to fetch teams with empty tournament ID");
     setFilteredTeams([]);
-    return;
+    return [];
   }
   
   try {
@@ -287,7 +294,7 @@ const fetchTeamsForTournament = async (tournamentId: string) => {
     console.log(`Fetching teams for tournament ${tournamentId}`);
     
     // Use the dedicated API endpoint for tournament teams
-    const response = await fetch(`/api/management/tournaments/${tournamentId}/teams`);
+    const response = await fetch(`/api/management/matches/tournament-teams?tournamentId=${tournamentId}`);
     
     if (!response.ok) {
       const errorText = await response.text();
@@ -299,7 +306,7 @@ const fetchTeamsForTournament = async (tournamentId: string) => {
     console.log(`Teams loaded for tournament ${tournamentId}:`, data);
     
     if (Array.isArray(data)) {
-      // Transform data to ensure it has the expected format
+      // Transform data to ensure it has the expected format and consistent ID field
       const transformedData = data.map((team) => ({
         _id: team._id,
         id: team._id, // Add id as an alias for compatibility
@@ -348,7 +355,7 @@ const fetchManagersForTournament = async (tournamentId: string) => {
     console.log("Fetching managers for tournament:", tournamentId);
     
     // Use the dedicated API endpoint for tournament managers
-    const response = await fetch(`/api/management/tournaments/${tournamentId}/managers`);
+    const response = await fetch(`/api/management/matches/tournament-managers?tournamentId=${tournamentId}`);
     
     if (!response.ok) {
       const errorText = await response.text();
@@ -359,34 +366,47 @@ const fetchManagersForTournament = async (tournamentId: string) => {
     const data = await response.json();
     console.log(`Managers for tournament ${tournamentId}:`, data);
     
-    if (Array.isArray(data) && data.length > 0) {
-      // Make sure data has the expected format
+    if (Array.isArray(data)) {
+      // Make sure data has the expected format with consistent ID field
       const formattedManagers = data.map((manager) => ({
         _id: manager._id,
-        name: manager.name || "Unknown Manager"
+        id: manager._id, // Add id alias for compatibility
+        name: manager.name || manager.username || "Unknown Manager"
       }));
       
-      console.log("Setting tournament managers:", formattedManagers);
-      setTournamentManagers(formattedManagers);
+      console.log("Formatted managers:", formattedManagers);
       
-      // If admin is one of the managers, set as default handler
-      const isAdminManager = formattedManagers.some(m => m._id === adminId);
-      if (isAdminManager) {
+      if (formattedManagers.length === 0) {
+        // If no managers returned, add admin as default
+        console.log("No managers found, using admin as default");
+        setTournamentManagers([{_id: adminId, id: adminId, name: "You (Admin)"}]);
+        
         setFormData(prev => ({
           ...prev,
           handler: adminId
         }));
-      } else if (formattedManagers.length > 0) {
-        // Otherwise set first manager as default
-        setFormData(prev => ({
-          ...prev,
-          handler: formattedManagers[0]._id
-        }));
+      } else {
+        setTournamentManagers(formattedManagers);
+        
+        // If admin is one of the managers, set as default handler
+        const isAdminManager = formattedManagers.some(m => m._id === adminId);
+        if (isAdminManager) {
+          setFormData(prev => ({
+            ...prev,
+            handler: adminId
+          }));
+        } else {
+          // Otherwise set first manager as default
+          setFormData(prev => ({
+            ...prev,
+            handler: formattedManagers[0]._id
+          }));
+        }
       }
     } else {
       // Fall back to using the admin as the only manager
-      console.warn("No managers found for tournament, using admin as default");
-      setTournamentManagers([{_id: adminId, name: "You (Admin)"}]);
+      console.warn("Invalid manager data format, using admin as default");
+      setTournamentManagers([{_id: adminId, id: adminId, name: "You (Admin)"}]);
       
       setFormData(prev => ({
         ...prev,
@@ -396,7 +416,7 @@ const fetchManagersForTournament = async (tournamentId: string) => {
   } catch (error) {
     console.error(`Error fetching managers for tournament ${tournamentId}:`, error);
     // Fall back to using the admin as the manager
-    setTournamentManagers([{_id: adminId, name: "You (Admin)"}]);
+    setTournamentManagers([{_id: adminId, id: adminId, name: "You (Admin)"}]);
     
     setFormData(prev => ({
       ...prev,
@@ -502,6 +522,7 @@ const handleOpenNewMatchDialog = () => {
   setOpenDialog(true);
 };
 
+// Fix the handleCreateMatch function to ensure proper ID handling
 const handleCreateMatch = async (e: React.FormEvent) => {
   e.preventDefault();
   
@@ -523,8 +544,10 @@ const handleCreateMatch = async (e: React.FormEvent) => {
     const payload = {
       ...formData,
       handler: formData.handler || adminId, // Use selected handler or default to adminId
-      overs: parseInt(String(formData.overs))
+      overs: formData.overs ? parseInt(String(formData.overs)) : undefined
     };
+    
+    console.log("Creating match with payload:", payload);
     
     const response = await fetch('/api/management/matches', {
       method: 'POST',
@@ -532,10 +555,13 @@ const handleCreateMatch = async (e: React.FormEvent) => {
       body: JSON.stringify(payload)
     });
     
+    const responseData = await response.json();
+    
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to create match');
+      throw new Error(responseData.error || 'Failed to create match');
     }
+    
+    console.log("Match created successfully:", responseData);
     
     // Refresh the matches list instead of trying to update state directly
     await fetchMatches();
@@ -575,6 +601,7 @@ const handleEditMatch = async (match: Match) => {
   setOpenDialog(true);
 };
 
+// Fix the handleUpdateMatch function
 const handleUpdateMatch = async (e: React.FormEvent) => {
   e.preventDefault();
   if (!selectedMatch) return;
@@ -589,10 +616,12 @@ const handleUpdateMatch = async (e: React.FormEvent) => {
     setActionLoading(true);
     
     const payload = {
-      id: selectedMatch.id,
+      id: selectedMatch._id || selectedMatch.id, // Make sure we're using the correct ID
       ...formData,
-      overs: parseInt(String(formData.overs))
+      overs: formData.match_format !== 'Test' ? parseInt(String(formData.overs)) : undefined
     };
+    
+    console.log("Updating match with payload:", payload);
     
     const response = await fetch('/api/management/matches', {
       method: 'PUT',
@@ -600,12 +629,15 @@ const handleUpdateMatch = async (e: React.FormEvent) => {
       body: JSON.stringify(payload)
     });
     
+    const responseData = await response.json();
+    
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Failed to update match');
+      throw new Error(responseData.error || 'Failed to update match');
     }
     
-    // Refresh the matches list instead of trying to update state directly
+    console.log("Match updated successfully:", responseData);
+    
+    // Refresh the matches list
     await fetchMatches();
     
     toast.success("Match updated successfully");
@@ -859,11 +891,15 @@ return (
                     <SelectValue placeholder="Select tournament" />
                   </SelectTrigger>
                   <SelectContent>
-                    {tournaments.map((tournament) => (
-                      <SelectItem key={tournament.id} value={tournament.id || tournament._id}>
-                        {tournament.tournamentName}
-                      </SelectItem>
-                    ))}
+                    {tournaments.length > 0 ? (
+                      tournaments.map((tournament) => (
+                        <SelectItem key={tournament._id} value={tournament._id}>
+                          {tournament.tournamentName}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="loading" disabled>Loading tournaments...</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -910,7 +946,7 @@ return (
                   </SelectTrigger>
                   <SelectContent>
                     {filteredTeams.map((team) => (
-                      <SelectItem key={team._id || team.id} value={team._id || team.id}>
+                      <SelectItem key={team._id} value={team._id}>
                         {team.teamName}
                       </SelectItem>
                     ))}
@@ -925,16 +961,16 @@ return (
                 <Select 
                   value={formData.team2} 
                   onValueChange={(value) => handleSelectChange('team2', value)}
-                  disabled={!formData.tournament_id}
+                  disabled={!formData.tournament_id || filteredTeams.length === 0}
                 >
                   <SelectTrigger className="col-span-3">
                     <SelectValue placeholder={formData.tournament_id ? "Select team" : "Select tournament first"} />
                   </SelectTrigger>
                   <SelectContent>
                     {filteredTeams
-                      .filter(team => team.id !== formData.team1) // Don't allow selecting the same team
+                      .filter(team => team._id !== formData.team1) // Don't allow selecting the same team
                       .map(team => (
-                        <SelectItem key={team.id} value={team.id}>
+                        <SelectItem key={team._id} value={team._id}>
                           {team.teamName}
                         </SelectItem>
                       ))}
