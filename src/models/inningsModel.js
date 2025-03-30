@@ -13,16 +13,23 @@ const inningsSchema = new mongoose.Schema({
         ref: "matches", // Reference to Match Model
         required: [true, "Match ID is required"],
     },
+    innings_number: {
+        type: Number,
+        required: [true, "Innings number is required"],
+        min: 1,
+        max: 2,
+        default: 1,
+    },
     team: {
         batting_team:{
             type: mongoose.Schema.Types.ObjectId,
             ref: "teams", // Reference to Team Model
-            required: [true, "Team ID is required"],
+            required: [true, "Batting Team ID is required"],
         },
         bowling_team:{
             type: mongoose.Schema.Types.ObjectId,
             ref: "teams", // Reference to Team Model
-            required: [true, "Team ID is required"],
+            required: [true, "Bowling Team ID is required"],
         }
     },
     runs: {
@@ -49,6 +56,19 @@ const inningsSchema = new mongoose.Schema({
         byes: { type: Number, default: 0 },
         leg_byes: { type: Number, default: 0 },
     },
+    status: {
+        type: String,
+        enum: ["ongoing", "completed"],
+        default: "ongoing"
+    },
+    current_over: {
+        type: Number,
+        default: 0
+    },
+    current_ball: {
+        type: Number,
+        default: 0
+    }
 });
 
 // ✅ Virtual field to calculate total score (Runs + Extras)

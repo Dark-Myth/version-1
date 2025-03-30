@@ -12,6 +12,8 @@ export async function GET(request: Request) {
         const status = searchParams.get("status");
         const search = searchParams.get("search");
         
+        
+
         const query: any = {};
         
         if (status && status !== "all") {
@@ -31,7 +33,7 @@ export async function GET(request: Request) {
             .lean();
         
         console.log(`Found ${tournaments.length} tournaments`);
-        
+       
         return NextResponse.json(tournaments);
     } catch (error: any) {
         console.error("Error fetching tournaments:", error);

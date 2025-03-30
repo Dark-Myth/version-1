@@ -113,6 +113,8 @@ const LiveScoring: React.FC<LiveScoringProps> = ({ adminId }) => {
   
   // Player selection state
   const [selectedBattingTeam, setSelectedBattingTeam] = useState<string>('');
+  const [selectedTossWinner, setSelectedTossWinner] = useState<string>('');
+  const [tossDecision, setTossDecision] = useState<string>('');
   const [selectedBatsman, setSelectedBatsman] = useState<string>('');
   const [selectedBowler, setSelectedBowler] = useState<string>('');
   const [selectedFielder, setSelectedFielder] = useState<string>('');
@@ -124,6 +126,13 @@ const LiveScoring: React.FC<LiveScoringProps> = ({ adminId }) => {
   const [isLoadingPlayers, setIsLoadingPlayers] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   
+  // Add new state variables
+  const [inningsDialogOpen, setInningsDialogOpen] = useState(false);
+  const [inningsBattingTeam, setInningsBattingTeam] = useState<string>('');
+  const [inningsBowlingTeam, setInningsBowlingTeam] = useState<string>('');
+  const [inningsNumber, setInningsNumber] = useState<number>(1);
+  const [isCreatingInnings, setIsCreatingInnings] = useState(false);
+
   useEffect(() => {
     fetchMatches();
   }, [adminId]);
@@ -177,17 +186,29 @@ const LiveScoring: React.FC<LiveScoringProps> = ({ adminId }) => {
   };
   
   const confirmStartMatch = async () => {
-    if (!activeMatch || !selectedBattingTeam) {
-      toast.error("Please select a batting team");
+    if (!activeMatch || !selectedTossWinner || !tossDecision) {
+      toast.error("Please select toss winner and decision");
       return;
     }
 
     setIsProcessing(prev => ({ ...prev, [activeMatch._id]: true }));
     
     try {
-      const bowlingTeamId = activeMatch.team1._id === selectedBattingTeam 
-        ? activeMatch.team2._id 
-        : activeMatch.team1._id;
+      // Determine batting and bowling teams based on toss decision
+      let battingTeamId, bowlingTeamId;
+      
+      if (tossDecision === 'bat') {
+        battingTeamId = selectedTossWinner;
+        bowlingTeamId = activeMatch.team1._id === selectedTossWinner 
+          ? activeMatch.team2._id 
+          : activeMatch.team1._id;
+      } else {
+        // If toss winner chose to field
+        bowlingTeamId = selectedTossWinner;
+        battingTeamId = activeMatch.team1._id === selectedTossWinner 
+          ? activeMatch.team2._id 
+          : activeMatch.team1._id;
+      }
 
       const response = await fetch('/api/management/live-score', {
         method: 'PUT',
@@ -198,8 +219,10 @@ const LiveScoring: React.FC<LiveScoringProps> = ({ adminId }) => {
           matchId: activeMatch._id,
           action: 'startMatch',
           inningsData: {
-            battingTeam: selectedBattingTeam,
-            bowlingTeam: bowlingTeamId
+            battingTeam: battingTeamId,
+            bowlingTeam: bowlingTeamId,
+            tossWinner: selectedTossWinner,
+            tossDecision: tossDecision
           }
         })
       });
@@ -220,8 +243,9 @@ const LiveScoring: React.FC<LiveScoringProps> = ({ adminId }) => {
       toast.success("Match started successfully");
       setStartMatchDialogOpen(false);
       
-      // Reset selected batting team
-      setSelectedBattingTeam('');
+      // Reset selected values
+      setSelectedTossWinner('');
+      setTossDecision('');
     } catch (error) {
       console.error("Error confirming match start:", error);
       toast.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
@@ -254,141 +278,145 @@ const LiveScoring: React.FC<LiveScoringProps> = ({ adminId }) => {
   
   const handleOpenScoring = async (match: Match) => {
     setActiveMatch(match);
-    setScoringDialogOpen(true);
     setApiError(null);
     
     try {
       // Get the latest match details including innings
-      const response = await fetch(`/api/matches/${match._id}`);
+      const response = await fetch(`/api/management/matches/${match._id}`);
       if (!response.ok) {
         throw new Error("Failed to fetch match details");
       }
       
       const matchDetails = await response.json();
+      console.log("Match details:", matchDetails);
       
       // Find current innings (most recent) if it exists
-      let currentInnings = null;
       if (matchDetails.innings && matchDetails.innings.length > 0) {
-        currentInnings = matchDetails.innings[matchDetails.innings.length - 1];
+        // Innings exists, proceed to scoring
+        const currentInnings = matchDetails.innings[matchDetails.innings.length - 1];
         
         // Make sure we have the complete innings data
         setActiveInnings(currentInnings);
         
+        // Set the innings number for reference
+        setInningsNumber(matchDetails.innings.length + 1);
+        
         // Update the UI with current score
         console.log("Current innings:", currentInnings);
         
-        // Fetch real players from API
-        try {
-          const battingTeamId = currentInnings.team.batting_team._id;
-          const bowlingTeamId = currentInnings.team.bowling_team._id;
-          
-          console.log("Fetching players for teams:", battingTeamId, bowlingTeamId);
-          
-          const [battingPlayersResponse, bowlingPlayersResponse] = await Promise.all([
-            fetch(`/api/teams/${battingTeamId}/players`),
-            fetch(`/api/teams/${bowlingTeamId}/players`)
-          ]);
-          
-          if (!battingPlayersResponse.ok || !bowlingPlayersResponse.ok) {
-            throw new Error("Failed to fetch players");
-          }
-          
-          const battingPlayers = await battingPlayersResponse.json();
-          const bowlingPlayers = await bowlingPlayersResponse.json();
-          
-          console.log("Fetched players:", { battingPlayers, bowlingPlayers });
-          
-          setRealBatsmen(battingPlayers);
-          setRealBowlers(bowlingPlayers);
-          
-          // If we have real players, clear the mock players
-          setMockBatsmen([]);
-          setMockBowlers([]);
-        } catch (error) {
-          console.error("Error loading players, falling back to mock data:", error);
-          // Fall back to mock players if API fails
-          const mockBatsmen = createMockPlayers(currentInnings.team.batting_team._id, "Batting");
-          const mockBowlers = createMockPlayers(currentInnings.team.bowling_team._id, "Bowling");
-          
-          setMockBatsmen(mockBatsmen);
-          setMockBowlers(mockBowlers);
-          
-          console.log("Using mock players:", { mockBatsmen, mockBowlers });
-          
-          // Clear real players arrays
-          setRealBatsmen([]);
-          setRealBowlers([]);
-        }
+        // Load the players for this innings
+        loadPlayers(currentInnings);
+        
+        // Open scoring dialog
+        setScoringDialogOpen(true);
       } else {
-        // No innings found - this should not happen for ongoing matches
-        // but we'll create a mock innings anyway
-        console.warn("No innings found for ongoing match:", match._id);
-        
-        // Create a mock innings
-        const mockInnings: Innings = {
-          _id: `innings_${match._id}`,
-          team: {
-            batting_team: match.team1,
-            bowling_team: match.team2
-          },
-          runs: 0,
-          wickets: 0,
-          overs: [],
-          extras: {
-            wides: 0,
-            no_balls: 0,
-            byes: 0,
-            leg_byes: 0
-          }
-        };
-        
-        setActiveInnings(mockInnings);
-        
-        // Create mock players
-        const mockBatsmen = createMockPlayers(match.team1._id, "Batting");
-        const mockBowlers = createMockPlayers(match.team2._id, "Bowling");
+        // No innings found - we need to create one
+        console.log("No innings found, opening innings creation dialog");
+        setInningsBattingTeam('');
+        setInningsBowlingTeam('');
+        setInningsNumber(1);
+        setInningsDialogOpen(true);
+      }
+    } catch (error) {
+      console.error("Error setting up scoring:", error);
+      toast.error(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  };
+  
+  // Add a new function to load players
+  const loadPlayers = async (currentInnings: Innings) => {
+    try {
+      const battingTeamId = currentInnings.team.batting_team._id;
+      const bowlingTeamId = currentInnings.team.bowling_team._id;
+      
+      console.log("Fetching players for teams:", battingTeamId, bowlingTeamId);
+      
+      const [battingPlayersResponse, bowlingPlayersResponse] = await Promise.all([
+        fetch(`/api/teams/${battingTeamId}/players`),
+        fetch(`/api/teams/${bowlingTeamId}/players`)
+      ]);
+      
+      if (!battingPlayersResponse.ok || !bowlingPlayersResponse.ok) {
+        throw new Error("Failed to fetch players");
+      }
+      
+      const battingPlayers = await battingPlayersResponse.json();
+      const bowlingPlayers = await bowlingPlayersResponse.json();
+      
+      console.log("Fetched players:", { battingPlayers, bowlingPlayers });
+      
+      setRealBatsmen(battingPlayers);
+      setRealBowlers(bowlingPlayers);
+      
+      // If we have real players, clear the mock players
+      setMockBatsmen([]);
+      setMockBowlers([]);
+    } catch (error) {
+      console.error("Error loading players, falling back to mock data:", error);
+      // Fall back to mock players if API fails
+      if (currentInnings) {
+        const mockBatsmen = createMockPlayers(currentInnings.team.batting_team._id, "Batting");
+        const mockBowlers = createMockPlayers(currentInnings.team.bowling_team._id, "Bowling");
         
         setMockBatsmen(mockBatsmen);
         setMockBowlers(mockBowlers);
+        
+        console.log("Using mock players:", { mockBatsmen, mockBowlers });
         
         // Clear real players arrays
         setRealBatsmen([]);
         setRealBowlers([]);
       }
-    } catch (error) {
-      console.error("Error setting up scoring:", error);
-      toast.error(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
-      
-      // Create fallback mock data
-      const mockInnings: Innings = {
-        _id: `innings_${match._id}`,
-        team: {
-          batting_team: match.team1,
-          bowling_team: match.team2
+    }
+  };
+  
+  const createNewInnings = async () => {
+    if (!activeMatch || !inningsBattingTeam || !inningsBowlingTeam) {
+      toast.error("Please select both batting and bowling teams");
+      return;
+    }
+    
+    setIsCreatingInnings(true);
+    
+    try {
+      // Call the API to create a new innings
+      const response = await fetch('/api/management/innings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
         },
-        runs: 0,
-        wickets: 0,
-        overs: [],
-        extras: {
-          wides: 0,
-          no_balls: 0,
-          byes: 0,
-          leg_byes: 0
-        }
-      };
+        body: JSON.stringify({
+          matchId: activeMatch._id,
+          inningsNumber: inningsNumber,
+          battingTeam: inningsBattingTeam,
+          bowlingTeam: inningsBowlingTeam
+        })
+      });
       
-      setActiveInnings(mockInnings);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to create innings: ${errorText}`);
+      }
       
-      // Create mock players as fallback
-      const mockBatsmen = createMockPlayers(match.team1._id, "Batting");
-      const mockBowlers = createMockPlayers(match.team2._id, "Bowling");
+      const newInnings = await response.json();
+      console.log("Created new innings:", newInnings);
       
-      setMockBatsmen(mockBatsmen);
-      setMockBowlers(mockBowlers);
+      // Set the active innings
+      setActiveInnings(newInnings);
       
-      // Clear real players arrays
-      setRealBatsmen([]);
-      setRealBowlers([]);
+      // Load players for this innings
+      await loadPlayers(newInnings);
+      
+      // Close the innings dialog and open the scoring dialog
+      setInningsDialogOpen(false);
+      setScoringDialogOpen(true);
+      
+      toast.success(`Innings ${inningsNumber} started`);
+    } catch (error) {
+      console.error("Error creating innings:", error);
+      toast.error(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+      setIsCreatingInnings(false);
     }
   };
   
@@ -757,24 +785,72 @@ const LiveScoring: React.FC<LiveScoringProps> = ({ adminId }) => {
             <div className="py-4">
               <div className="space-y-4">
                 <div>
-                  <h3 className="text-sm font-medium mb-2">Select Batting Team</h3>
-                  <Select
-                    value={selectedBattingTeam}
-                    onValueChange={setSelectedBattingTeam}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select batting team" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={activeMatch.team1._id}>
-                        {activeMatch.team1.teamName}
-                      </SelectItem>
-                      <SelectItem value={activeMatch.team2._id}>
-                        {activeMatch.team2.teamName}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <h3 className="text-sm font-medium mb-2">Toss Information</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-sm text-muted-foreground mb-1 block">Which team won the toss?</label>
+                      <Select
+                        value={selectedTossWinner}
+                        onValueChange={setSelectedTossWinner}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select toss winner" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={activeMatch.team1._id}>
+                            {activeMatch.team1.teamName}
+                          </SelectItem>
+                          <SelectItem value={activeMatch.team2._id}>
+                            {activeMatch.team2.teamName}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div>
+                      <label className="text-sm text-muted-foreground mb-1 block">What did they elect to do?</label>
+                      <Select
+                        value={tossDecision}
+                        onValueChange={setTossDecision}
+                        disabled={!selectedTossWinner}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select decision" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="bat">Bat First</SelectItem>
+                          <SelectItem value="field">Field First</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
+                
+                {selectedTossWinner && tossDecision && (
+                  <div className="bg-blue-50 p-3 rounded-md">
+                    <h3 className="text-sm font-medium text-blue-700 mb-1">First Innings</h3>
+                    <div className="text-xs text-blue-600 space-y-1">
+                      <div className="flex justify-between font-medium">
+                        <span>Batting:</span>
+                        <span>
+                          {tossDecision === 'bat' 
+                            ? (selectedTossWinner === activeMatch.team1._id ? activeMatch.team1.teamName : activeMatch.team2.teamName)
+                            : (selectedTossWinner === activeMatch.team1._id ? activeMatch.team2.teamName : activeMatch.team1.teamName)
+                          }
+                        </span>
+                      </div>
+                      <div className="flex justify-between font-medium">
+                        <span>Bowling:</span>
+                        <span>
+                          {tossDecision === 'bat'
+                            ? (selectedTossWinner === activeMatch.team1._id ? activeMatch.team2.teamName : activeMatch.team1.teamName)
+                            : (selectedTossWinner === activeMatch.team1._id ? activeMatch.team1.teamName : activeMatch.team2.teamName)
+                          }
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 
                 <div className="bg-blue-50 p-3 rounded-md">
                   <h3 className="text-sm font-medium text-blue-700 mb-1">Match Information</h3>
@@ -806,7 +882,7 @@ const LiveScoring: React.FC<LiveScoringProps> = ({ adminId }) => {
               </Button>
               <Button 
                 onClick={confirmStartMatch}
-                disabled={!selectedBattingTeam || isProcessing[activeMatch._id]}
+                disabled={!selectedTossWinner || !tossDecision || isProcessing[activeMatch._id]}
               >
                 {isProcessing[activeMatch._id] ? (
                   <>
@@ -825,6 +901,141 @@ const LiveScoring: React.FC<LiveScoringProps> = ({ adminId }) => {
         </Dialog>
       )}
       
+      {/* Create Innings Dialog */}
+      {activeMatch && (
+        <Dialog open={inningsDialogOpen} onOpenChange={setInningsDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Create New Innings</DialogTitle>
+              <DialogDescription>
+                {activeMatch.team1.teamName} vs {activeMatch.team2.teamName} • Innings {inningsNumber}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="py-4">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-medium mb-2">Select Teams for Innings {inningsNumber}</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-sm text-muted-foreground mb-1 block">Batting Team</label>
+                      <Select
+                        value={inningsBattingTeam}
+                        onValueChange={(value) => {
+                          setInningsBattingTeam(value);
+                          // Auto-select the other team for bowling
+                          if (value === activeMatch.team1._id) {
+                            setInningsBowlingTeam(activeMatch.team2._id);
+                          } else {
+                            setInningsBowlingTeam(activeMatch.team1._id);
+                          }
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select batting team" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={activeMatch.team1._id}>
+                            {activeMatch.team1.teamName}
+                          </SelectItem>
+                          <SelectItem value={activeMatch.team2._id}>
+                            {activeMatch.team2.teamName}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div>
+                      <label className="text-sm text-muted-foreground mb-1 block">Bowling Team</label>
+                      <Select
+                        value={inningsBowlingTeam}
+                        onValueChange={setInningsBowlingTeam}
+                        disabled={!inningsBattingTeam}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select bowling team" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {inningsBattingTeam === activeMatch.team1._id ? (
+                            <SelectItem value={activeMatch.team2._id}>
+                              {activeMatch.team2.teamName}
+                            </SelectItem>
+                          ) : (
+                            <SelectItem value={activeMatch.team1._id}>
+                              {activeMatch.team1.teamName}
+                            </SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+                
+                {inningsBattingTeam && inningsBowlingTeam && (
+                  <div className="bg-blue-50 p-3 rounded-md">
+                    <h3 className="text-sm font-medium text-blue-700 mb-1">Innings Summary</h3>
+                    <div className="text-xs text-blue-600 space-y-1">
+                      <div className="flex justify-between font-medium">
+                        <span>Batting:</span>
+                        <span>
+                          {inningsBattingTeam === activeMatch.team1._id ? activeMatch.team1.teamName : activeMatch.team2.teamName}
+                        </span>
+                      </div>
+                      <div className="flex justify-between font-medium">
+                        <span>Bowling:</span>
+                        <span>
+                          {inningsBowlingTeam === activeMatch.team1._id ? activeMatch.team1.teamName : activeMatch.team2.teamName}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="bg-blue-50 p-3 rounded-md">
+                  <h3 className="text-sm font-medium text-blue-700 mb-1">Match Information</h3>
+                  <div className="text-xs text-blue-600 space-y-1">
+                    <div className="flex justify-between">
+                      <span>Format:</span>
+                      <span>{activeMatch.match_format}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Overs:</span>
+                      <span>{activeMatch.overs}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <DialogFooter>
+              <Button 
+                variant="outline" 
+                onClick={() => setInningsDialogOpen(false)}
+                disabled={isCreatingInnings}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={createNewInnings}
+                disabled={!inningsBattingTeam || !inningsBowlingTeam || isCreatingInnings}
+              >
+                {isCreatingInnings ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Play className="mr-2 h-4 w-4" />
+                    Start Innings
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+      
       {/* Scoring Dialog */}
       <Dialog open={scoringDialogOpen} onOpenChange={setScoringDialogOpen}>
         <DialogContent className="sm:max-w-[600px]">
@@ -833,6 +1044,11 @@ const LiveScoring: React.FC<LiveScoringProps> = ({ adminId }) => {
             {activeMatch && (
               <DialogDescription>
                 {activeMatch.team1.teamName} vs {activeMatch.team2.teamName}
+                {activeInnings && (
+                  <span className="block text-xs mt-1">
+                    {activeInnings.team.batting_team.teamName} batting • {activeInnings.team.bowling_team.teamName} bowling
+                  </span>
+                )}
               </DialogDescription>
             )}
           </DialogHeader>

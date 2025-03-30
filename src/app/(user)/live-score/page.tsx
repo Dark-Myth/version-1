@@ -162,8 +162,43 @@ const LiveScore = () => {
     };
   }, [autoRefresh]);
   
-  // Toggle expanded view for a match
+  // Add this function to fetch detailed match data when a match is selected
+  const fetchMatchDetails = async (matchId: string) => {
+    if (!matchId) return;
+    
+    try {
+      setRefreshing(true);
+      const response = await fetch(`/api/live-score/${matchId}`);
+      
+      if (!response.ok) {
+        throw new Error("Failed to fetch match details");
+      }
+      
+      const data = await response.json();
+      
+      // Update the selected match in the matches list
+      setMatches(prev => 
+        prev.map(match => 
+          match._id === matchId ? data : match
+        )
+      );
+      
+      // Expand this match
+      setExpandedMatches(prev => ({ ...prev, [matchId]: true }));
+    } catch (error) {
+      toast.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  // Replace the toggleExpand function with this improved version
   const toggleExpand = (matchId: string) => {
+    // If expanding and we don't have detailed data yet, fetch it
+    if (!expandedMatches[matchId]) {
+      fetchMatchDetails(matchId);
+    }
+    
     setExpandedMatches(prev => ({
       ...prev,
       [matchId]: !prev[matchId]

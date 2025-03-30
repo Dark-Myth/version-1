@@ -72,7 +72,18 @@ const TournamentManagement: React.FC<TournamentManagementProps> = ({ adminId }) 
         throw new Error("Failed to fetch tournaments");
       }
       
-      const data = await response.json();
+      let data = await response.json();
+      data= data.map(t => ({
+                  id: t._id,
+                  name: t.tournamentName,
+                  startDate: t.startDate,
+                  endDate: t.endDate,
+                  status: t.status === 'scheduled' ? 'upcoming' : t.status,
+                  teams: t.teams,
+                  matches: t.matches,
+                  format: t.format,
+      
+              }))
       setTournaments(data);
     } catch (error) {
       console.error("Error fetching tournaments:", error);
