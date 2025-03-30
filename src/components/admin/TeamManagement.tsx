@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { 
   Dialog, DialogContent, DialogDescription, 
-  DialogFooter, DialogHeader, DialogTitle, DialogTrigger 
+  DialogFooter, DialogHeader, DialogTitle 
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -146,6 +146,12 @@ const TeamManagement: React.FC<TeamManagementProps> = ({ adminId }) => {
   const fetchTeams = async () => {
     try {
       setLoading(true);
+      console.log("Current filter state:", {
+        tournamentFilter,
+        globalMode,
+        activeTab
+      });
+      
       // Construct query parameters
       const queryParams = new URLSearchParams();
       if (debouncedSearchQuery) queryParams.append('search', debouncedSearchQuery);
@@ -189,6 +195,7 @@ const TeamManagement: React.FC<TeamManagementProps> = ({ adminId }) => {
       
       const data = await response.json();
       // Filter only upcoming and ongoing tournaments for team creation
+      console.log("Fetched tournaments:", data);
       const availableTournaments = data.filter(
         (tournament: any) => ['upcoming', 'ongoing'].includes(tournament.status)
       );
@@ -352,11 +359,11 @@ const TeamManagement: React.FC<TeamManagementProps> = ({ adminId }) => {
   };
   
   // Fix the handleViewTeamPlayers function to correctly fetch and display team players
-  const handleViewTeamPlayers = async (teamId: string) => {
+  const handleViewTeamPlayers = async (teamId: string, openDialog = true) => {
     try {
       console.log(`Fetching team details for ID: ${teamId}`);
       setLoadingPlayers(true);
-      setOpenPlayersDialog(true); // Open dialog immediately to show loading state
+      if (openDialog) setOpenPlayersDialog(true); // Open dialog immediately to show loading state
       
       // Add a delay to ensure dialog renders before fetch starts
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -502,6 +509,12 @@ const TeamManagement: React.FC<TeamManagementProps> = ({ adminId }) => {
   };
   
   const handleOpenManagePlayers = async (teamId: string) => {
+    // Close the team players dialog first if it's open
+    setOpenPlayersDialog(false);
+    
+    // Short delay to ensure the first dialog closes properly
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     setSelectedPlayerTeamId(teamId);
     setOpenManagePlayersDialog(true);
     setSelectedPlayersToAdd([]);
@@ -510,7 +523,7 @@ const TeamManagement: React.FC<TeamManagementProps> = ({ adminId }) => {
     await fetchAvailablePlayers(teamId);
     
     // Also fetch current team details to see existing players
-    await handleViewTeamPlayers(teamId);
+    await handleViewTeamPlayers(teamId, false); // fetch data only, skip opening players dialog
   };
   
   const handleAddPlayersToTeam = async () => {
@@ -820,23 +833,34 @@ const TeamManagement: React.FC<TeamManagementProps> = ({ adminId }) => {
             </TabsList>
           </Tabs>
           
-          {!globalMode && tournaments.length > 0 && (
-            <Select
-              value={tournamentFilter}
-              onValueChange={setTournamentFilter}
-            >
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="All Tournaments" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Tournaments</SelectItem> {/* Changed from empty string to 'all' */}
+          {!globalMode && (
+            <div>
+              <Select
+                value={tournamentFilter}
+                onValueChange={(value) => {
+                
+                  setTournamentFilter(value);
+                  // Reset to first page when filter changes
+                  setCurrentPage(1);
+                }}
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="All Tournaments" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Tournaments</SelectItem> {/* Changed from empty string to 'all' */}
                 {tournaments.map(tournament => (
-                  <SelectItem key={tournament.id} value={tournament.id}>
-                    {tournament.name}
-                  </SelectItem>
+                      <SelectItem key={tournament.id} value={tournament.id}>
+                        {tournament.name}
+                      </SelectItem>
                 ))}
-              </SelectContent>
-            </Select>
+                </SelectContent>
+              </Select>
+              {tournamentFilter && tournamentFilter !== 'all' && (
+                <p className="text-xs text-blue-600 mt-1">
+                </p>
+              )}
+            </div>
           )}
         </div>
         
@@ -845,10 +869,13 @@ const TeamManagement: React.FC<TeamManagementProps> = ({ adminId }) => {
             <Switch
               checked={globalMode}
               onCheckedChange={(checked) => {
+                console.log(`Global mode changed to: ${checked}`);
                 setGlobalMode(checked);
                 if (checked) {
                   setTournamentFilter('all'); // Update to use 'all' instead of empty string
                 }
+                // Reset to first page when mode changes
+                setCurrentPage(1);
               }}
               id="global-mode"
             />
@@ -1026,7 +1053,12 @@ const TeamManagement: React.FC<TeamManagementProps> = ({ adminId }) => {
                 className="mt-4"
                 onClick={() => {
                   if (selectedTeamDetails) {
-                    handleOpenManagePlayers(selectedTeamDetails.id);
+                    // Close this dialog first
+                    setOpenPlayersDialog(false);
+                    // Small delay before opening the manage players dialog
+                    setTimeout(() => {
+                      handleOpenManagePlayers(selectedTeamDetails.id);
+                    }, 100);
                   }
                 }}
               >
@@ -1041,7 +1073,12 @@ const TeamManagement: React.FC<TeamManagementProps> = ({ adminId }) => {
                   variant="outline"
                   onClick={() => {
                     if (selectedTeamDetails) {
-                      handleOpenManagePlayers(selectedTeamDetails.id);
+                      // Close this dialog first
+                      setOpenPlayersDialog(false);
+                      // Small delay before opening the manage players dialog
+                      setTimeout(() => {
+                        handleOpenManagePlayers(selectedTeamDetails.id);
+                      }, 100);
                     }
                   }}
                 >
@@ -1147,9 +1184,10 @@ const TeamManagement: React.FC<TeamManagementProps> = ({ adminId }) => {
 
       {/* Manage Players Dialog */}
       <Dialog 
-        open={openManagePlayersDialog} 
+        open={openManagePlayersDialog}
         onOpenChange={(open) => {
           if (!open) {
+            setSelectedPlayerTeamId(null);
             setSelectedPlayersToAdd([]);
           }
           setOpenManagePlayersDialog(open);
@@ -1157,59 +1195,48 @@ const TeamManagement: React.FC<TeamManagementProps> = ({ adminId }) => {
       >
         <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Manage Team Players</DialogTitle>
+            <DialogTitle className="flex items-center">
+              <Users className="h-5 w-5 text-blue-500 mr-2" />
+              Manage Players
+            </DialogTitle>
             <DialogDescription>
-              Add players to the team by selecting from the list below.
+              Add or remove players from the team
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <div className="relative w-full max-w-sm">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
+          {loadingAvailablePlayers ? (
+            <div className="flex justify-center py-10">
+              <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-slate-700"></div>
+            </div>
+          ) : (
+            <>
+              <div className="mb-4 flex items-center justify-between">
                 <Input
                   placeholder="Search players..."
-                  className="pl-8"
                   value={searchPlayerQuery}
                   onChange={(e) => setSearchPlayerQuery(e.target.value)}
                 />
+                <Button 
+                  variant="outline"
+                  onClick={handleAddPlayersToTeam}
+                  disabled={selectedPlayersToAdd.length === 0 || isSavingPlayers}
+                >
+                  {isSavingPlayers ? (
+                    <span className="flex items-center">
+                      <span className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent rounded-full" /> 
+                      Saving...
+                    </span>
+                  ) : (
+                    'Add Players'
+                  )}
+                </Button>
               </div>
-              
-              <Button 
-                onClick={handleAddPlayersToTeam}
-                disabled={selectedPlayersToAdd.length === 0 || isSavingPlayers}
-              >
-                {isSavingPlayers ? (
-                  <span className="flex items-center">
-                    <span className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent rounded-full" /> 
-                    Adding...
-                  </span>
-                ) : (
-                  <>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Selected Players
-                  </>
-                )}
-              </Button>
-              </div>
-            </div>
-            
-            {loadingAvailablePlayers ? (
-              <div className="flex justify-center py-10">
-                <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-slate-700"></div>
-              </div>
-            ) : filteredAvailablePlayers.length === 0 ? (
-              <div className="text-center py-8">
-                <UserCircle className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500">No available players found</p>
-              </div>
-            ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[50px]">
-                      <Checkbox 
-                        checked={selectedPlayersToAdd.length === filteredAvailablePlayers.length && filteredAvailablePlayers.length > 0}
+                    <TableHead>
+                      <Checkbox
+                        checked={selectedPlayersToAdd.length === filteredAvailablePlayers.length}
                         onCheckedChange={(checked) => {
                           if (checked) {
                             setSelectedPlayersToAdd(filteredAvailablePlayers.map(player => player.id));
@@ -1230,7 +1257,7 @@ const TeamManagement: React.FC<TeamManagementProps> = ({ adminId }) => {
                   {filteredAvailablePlayers.map((player) => (
                     <TableRow key={player.id}>
                       <TableCell>
-                        <Checkbox 
+                        <Checkbox
                           checked={selectedPlayersToAdd.includes(player.id)}
                           onCheckedChange={(checked) => {
                             if (checked) {
@@ -1261,11 +1288,12 @@ const TeamManagement: React.FC<TeamManagementProps> = ({ adminId }) => {
                   ))}
                 </TableBody>
               </Table>
-            )}
+            </>
+          )}
           
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpenManagePlayersDialog(false)}>
-              Cancel
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

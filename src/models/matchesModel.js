@@ -43,7 +43,7 @@ const matchSchema = new mongoose.Schema({
     ],
     status: {
         type: String,
-        enum: ["scheduled", "ongoing", "completed"],
+        enum: ["scheduled", "ongoing", "completed", "cancelled", "tied"],
         required: [true, "Status is required"],
     },
     superover: {
@@ -55,8 +55,12 @@ const matchSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: "teams", // Reference to the actual winning team
         required: function () {
-            return this.status === "completed";
+            return this.status === "completed" && this.status !== "tied";
         },
+    },
+    isTied: {
+        type: Boolean,
+        default: false,
     },
     handler: {
         type: mongoose.Schema.Types.ObjectId,
@@ -83,11 +87,39 @@ const matchSchema = new mongoose.Schema({
     comments: {
         type: String,
         required: false,
+    },
+    // Auto scheduling related fields
+    isAutoScheduled: {
+        type: Boolean,
+        default: false,
+    },
+    scheduleDayOfWeek: {
+        type: Number, // 0-6 (Sunday-Saturday)
+        required: function() {
+            return this.isAutoScheduled;
+        },
+    },
+    recurringUntil: {
+        type: Date,
+        required: function() {
+            return this.isAutoScheduled;
+        },
+    },
+    cancellationReason: {
+        type: String,
+        required: function() {
+            return this.status === "cancelled";
+        },
+    },
+    umpires: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "users",
+    }],
+    referee: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "users",
     }
 });
 
 const Match = mongoose.models.matches || mongoose.model("matches", matchSchema);
 export default Match;
-
-
-// show that match is tied if the scores are equal
