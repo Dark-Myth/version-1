@@ -54,7 +54,8 @@ interface Tournament {
 const MATCH_STATUS = {
   scheduled: { label: "Scheduled", color: "bg-blue-100 text-blue-800" },
   ongoing: { label: "Ongoing", color: "bg-amber-100 text-amber-800" },
-  completed: { label: "Completed", color: "bg-green-100 text-green-800" }
+  completed: { label: "Completed", color: "bg-green-100 text-green-800" },
+  all: { label: "All", color: "bg-gray-100 text-gray-800" }
 };
 
 const MATCH_TYPES = [
@@ -195,11 +196,15 @@ const Matches = () => {
         filtered = filtered.filter(match => match.status === 'ongoing');
         break;
       case 'completed':
-        filtered = filtered.filter(match => match.status === 'completed');
+        filtered = filtered.filter(match =>match.status === 'completed');
         // Sort by most recent date
         filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         break;
       case 'all':
+        filtered = filtered.filter(match =>( match.status === 'ongoing' || match.status==='scheduled' || match.status==='completed') && new Date(match.date) < today);
+        // Sort by most recent date
+        filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        break;
       default:
         // Sort by date (upcoming first, then live, then recent)
         filtered.sort((a, b) => {
@@ -210,6 +215,7 @@ const Matches = () => {
           }
           return new Date(b.date).getTime() - new Date(a.date).getTime();
         });
+      
     }
 
     setFilteredMatches(filtered);
@@ -435,7 +441,7 @@ const Matches = () => {
                     <Link href={`/matches/${match._id}`} className="block">
                       <Card className="overflow-hidden hover:shadow-md transition-shadow duration-200 border-l-4 
                         ${match.status === 'ongoing' ? 'border-l-amber-500' : 
-                          match.status === 'completed' ? 'border-l-green-500' : 'border-l-blue-500'}"
+                          match.status === 'completed' ? 'border-l-green-500' : match,status === 'all'?'border-l-gray-800': 'border-l-blue-500'}"
                       >
                         <div className="p-4">
                           {/* Match header */}

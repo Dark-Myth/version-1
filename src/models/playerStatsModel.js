@@ -38,6 +38,12 @@ const playerStatsSchema = new mongoose.Schema({
         catches: { type: Number, default: 0 },
         stumpings: { type: Number, default: 0 },
     },
+    matchStatus: {
+        active: { type: Boolean, default: false },
+        dismissed: { type: Boolean, default: false },
+        currentlyBatting: { type: Boolean, default: false },
+        currentlyBowling: { type: Boolean, default: false },
+    }
 });
 
 // ✅ Function to Update Global Stats After Tournament Ends

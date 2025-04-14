@@ -41,7 +41,7 @@ export default function SignupPage() {
     if (session) {
       router.push("/");
     }
-  });
+  }, [session, router]);
 
   if (session) {
     return null;
@@ -50,15 +50,43 @@ export default function SignupPage() {
   const onSignup = async () => {
     try {
       setLoading(true);
-      await signIn("credentials", {
+      
+      // First register the user
+      const registerResponse = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: user.username,
+          email: user.email,
+          password: user.password
+        })
+      });
+
+      if (!registerResponse.ok) {
+        const errorData = await registerResponse.json();
+        throw new Error(errorData.message || "Registration failed");
+      }
+      
+      toast.success("Account created successfully!");
+      
+      // After successful registration, sign in
+      const signInResult = await signIn("credentials", {
         redirect: false,
         email: user.email,
         password: user.password
       });
+      
+      if (signInResult?.error) {
+        toast.error("Sign in after registration failed");
+        console.error("Sign in error:", signInResult.error);
+        return;
+      }
+      
       router.push("/");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
-      console.error("Sign in failed", error);
+      console.error("Sign up failed", error);
       toast.error(error.response?.data?.message || error.message);
     } finally {
       setLoading(false);

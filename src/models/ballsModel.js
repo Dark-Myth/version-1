@@ -7,35 +7,47 @@ const ballSchema = new mongoose.Schema({
     },
     batsman: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Player',
+        ref: 'players',
         required: [true, "Batsman is required"],
     },
     bowler: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Player',
+        ref: 'players',
         required: [true, "Bowler is required"],
     },
     runs: {
         type: Number,
         required: [true, "Runs are required"],
     },
+    isLegalDelivery: {
+        type: Boolean,
+        default: true
+    },
     wicket: {
         fallen: {
             type: Boolean,
             required: true,
         },
+        batsmanOut: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'players',
+            required: function() {
+                return this.wicket.fallen;
+            }
+        },
         wicketType: {
             type: String,
-            enum: ["bowled", "caught", "lbw", "run out", "stumped", "hit wicket"],
+            enum: ["bowled", "caught", "lbw", "run out", "stumped", "hit wicket", ""],
             required: function () {
-                return this.fallen;
+                return this.wicket.fallen;
             },
+            default: "",
         },
         fielder: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'Player',
+            ref: 'players',
             required: function () {
-                return this.fallen && ["caught", "run out", "stumped"].includes(this.wicketType);
+                return this.wicket.fallen && ["caught", "run out", "stumped"].includes(this.wicketType);
             },
         },
     },
